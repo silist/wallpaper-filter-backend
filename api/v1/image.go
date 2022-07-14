@@ -21,12 +21,6 @@ const (
 	LessOrEqualThan    HwOperatorType = 1 // 小于等于
 )
 
-func Demo(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"test": "test",
-	})
-}
-
 func GetImageList(c *gin.Context) {
 	var imageList []string
 	var err error
@@ -42,12 +36,10 @@ func GetImageList(c *gin.Context) {
 		log.Fatal(err)
 	}
 	switch c.DefaultQuery("hwoperator", "") {
-	case "ge":
+	case "gte":
 		imageList, err = filterImagePathsByHwRatio(imageList, GreaterOrEqualThan, hwratio)
-		break
-	case "le":
+	case "lte":
 		imageList, err = filterImagePathsByHwRatio(imageList, GreaterOrEqualThan, hwratio)
-		break
 	default:
 		break
 	}
@@ -100,15 +92,17 @@ func fetchAllImagePaths(relDir string) []string {
 	filePaths := util.ListDirRecur(path.Join(baseDir, relDir))
 	var imagePaths []string
 	for _, p := range filePaths {
-		switch filepath.Ext(p) {
+		relPath, err := filepath.Rel(baseDir, p)
+		if err != nil {
+			log.Println("[ERROR]", err)
+			continue
+		}
+		switch filepath.Ext(relPath) {
 		case ".webp":
 		case ".jpg":
 		case ".jpeg":
 		case ".png":
-			imagePaths = append(imagePaths, p)
-			break
-		default:
-			break
+			imagePaths = append(imagePaths, relPath)
 		}
 	}
 	return imagePaths
@@ -132,13 +126,18 @@ func filterImagePathsByHwRatio(paths []string, hwOperator HwOperatorType, hwRati
 			if ratio >= hwRatio {
 				pathFiltered = append(pathFiltered, p)
 			}
-			break
 		case LessOrEqualThan:
 			if ratio <= hwRatio {
 				pathFiltered = append(pathFiltered, p)
 			}
-			break
 		}
 	}
 	return pathFiltered, nil
+}
+
+func GetImage(c *gin.Context) {
+	relPath := c.Query("path")
+	baseDir := util.Config().BaseDir
+	absPath := path.Join(baseDir, relPath)
+	c.File(absPath)
 }

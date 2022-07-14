@@ -1,10 +1,11 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
 	"log"
 	v1 "wallpaper-filter/api/v1"
 	"wallpaper-filter/util"
+
+	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() {
@@ -12,8 +13,8 @@ func InitRouter() {
 
 	rv1 := r.Group("api/v1")
 	{
-		rv1.GET("test", v1.Demo)
 		rv1.GET("image_list", v1.GetImageList)
+		rv1.GET("image", v1.GetImage)
 	}
 
 	err := r.Run(util.Config().Addr)
