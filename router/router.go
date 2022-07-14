@@ -12,6 +12,7 @@ func InitRouter() {
 
 	rv1 := r.Group("api/v1")
 	{
+		rv1.GET("test", v1.Demo)
 		rv1.GET("image_list", v1.GetImageList)
 	}
 

@@ -21,6 +21,12 @@ const (
 	LessOrEqualThan    HwOperatorType = 1 // 小于等于
 )
 
+func Demo(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"test": "test",
+	})
+}
+
 func GetImageList(c *gin.Context) {
 	var imageList []string
 	var err error
