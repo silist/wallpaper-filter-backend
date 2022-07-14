@@ -3,9 +3,14 @@ module wallpaper-filter
 go 1.18
 
 require (
-	github.com/BurntSushi/toml v1.1.0 // indirect
+	github.com/BurntSushi/toml v1.1.0
+	github.com/chai2010/webp v1.1.1
+	github.com/gin-gonic/gin v1.8.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
+)
+
+require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.8.1 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect

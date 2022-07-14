@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// 递归列出文件夹中所有文件
+// ListDirRecur 递归列出文件夹中所有文件
 func ListDirRecur(dirPath string) []string {
 	files, err := ioutil.ReadDir(dirPath)
 	var filePaths []string

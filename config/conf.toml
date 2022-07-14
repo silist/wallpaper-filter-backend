@@ -1,1 +1,4 @@
-base_dir = "H:/silist/anime/illustration/pixiv_archived"
+# base_dir = "H:/silist/anime/illustration/pixiv_archived"
+base_dir = "/Users/feegao/Pictures/wallpaper"
+download_dir = "./wallpaper-recent"
+addr = "localhost:3434"
