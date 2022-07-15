@@ -22,7 +22,7 @@ GET
 ```
 Query String:
 ```
-relpath=${rel_path} // 图片在根目录下相对路径
+path=${rel_path} // 图片在根目录下相对路径
 ```
 
 ### 下载图片到本地目录

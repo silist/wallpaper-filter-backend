@@ -2,9 +2,10 @@ package v1
 
 import (
 	"log"
+	"net/http"
 	"path"
 	"path/filepath"
-	"strconv"
+	"wallpaper-filter/model"
 	"wallpaper-filter/util"
 
 	"github.com/gin-gonic/gin"
@@ -13,73 +14,74 @@ import (
 // 用map模拟cache，避免重复扫文件；无过期时间
 var imagePathCache = make(map[string][]string)
 
-// HwOperatorType 宽高比较运算符
-type HwOperatorType int32
-
-const (
-	GreaterOrEqualThan HwOperatorType = 0 // 大于等于
-	LessOrEqualThan    HwOperatorType = 1 // 小于等于
-)
-
 func GetImageList(c *gin.Context) {
-	var imageList []string
+	// bind req
+	var req model.ImageListReq
+	if err := c.ShouldBind(req); err == nil {
+		log.Printf("[ERROR] %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"err": util.ErrParseReq,
+		})
+		return
+	}
+
+	// load and filter
+	imageList := loadImagePaths(req.Dir)
 	var err error
-	relPath := c.Query("dir")
-	// load
-	if len(relPath) > 0 {
-		imageList = loadImagePaths(relPath)
-	}
-	// filter
-	var hwratio float64
-	hwratio, err = strconv.ParseFloat(c.Query("hwratio"), 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	switch c.DefaultQuery("hwoperator", "") {
+	switch req.HWOperator {
 	case "gte":
-		imageList, err = filterImagePathsByHwRatio(imageList, GreaterOrEqualThan, hwratio)
+		imageList, err = filterImagePathsByHwRatio(imageList, util.GreaterOrEqualThan, req.HWRatio)
 	case "lte":
-		imageList, err = filterImagePathsByHwRatio(imageList, GreaterOrEqualThan, hwratio)
-	default:
-		break
+		imageList, err = filterImagePathsByHwRatio(imageList, util.LessOrEqualThan, req.HWRatio)
 	}
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("[ERROR] %v", util.ErrFilterImage)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"err": util.ErrFilterImage,
+		})
+		return
 	}
+
 	// pager
-	pageNum := c.DefaultQuery("pagenum", "")
-	pageSize := c.DefaultQuery("pagesize", "")
-	var pageNumInt int
-	var pageSizeInt int
-	if len(pageNum) > 0 && len(pageSize) > 0 {
-		pageNumInt, err = strconv.Atoi(pageNum)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pageSizeInt, err = strconv.Atoi(pageSize)
-		if err != nil {
-			log.Fatal(err)
-		}
-		var idxStart int
-		if pageNumInt*pageSizeInt > len(imageList)-1 {
-			idxStart = len(imageList) - 1
-		} else {
-			idxStart = pageNumInt * pageSizeInt
-		}
-		var idxEnd int
-		if pageNumInt*(pageSizeInt+1) > len(imageList) {
-			idxEnd = len(imageList)
-		} else {
-			idxEnd = pageNumInt * (pageSizeInt + 1)
-		}
-		imageList = imageList[idxStart:idxEnd]
+	imageList, err = getImageListPage(imageList, req, c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"err": util.ErrParseReq,
+		})
+		return
 	}
-	c.JSON(200, gin.H{
+
+	c.JSON(http.StatusOK, gin.H{
 		"paths": imageList,
 	})
 }
 
-// 优先从cache中取图片地址集合，如不存在则遍历
+// getImageListPage 分页逻辑
+func getImageListPage(imageList []string, req model.ImageListReq, c *gin.Context) ([]string, error) {
+	// default: return all
+	if req.PageNum == 0 && req.PageSize == 0 {
+		return imageList, nil
+	}
+	if req.PageNum == 0 || req.PageSize == 0 {
+		log.Printf("[ERROR] one of page_num, page_size is emtpy.")
+		return []string{}, nil
+	}
+	// pager
+	var idxStart, idxEnd int
+	if req.PageNum*req.PageSize > len(imageList)-1 {
+		idxStart = len(imageList) - 1
+	} else {
+		idxStart = req.PageNum * req.PageSize
+	}
+	if (req.PageNum+1)*req.PageSize > len(imageList) {
+		idxEnd = len(imageList)
+	} else {
+		idxEnd = req.PageNum * (req.PageSize + 1)
+	}
+	return imageList[idxStart:idxEnd], nil
+}
+
+// loadImagePaths 优先从cache中取图片地址集合，如不存在则遍历
 func loadImagePaths(relPath string) []string {
 	if _, ok := imagePathCache[relPath]; !ok {
 		imagePathCache[relPath] = fetchAllImagePaths(relPath)
@@ -87,6 +89,7 @@ func loadImagePaths(relPath string) []string {
 	return imagePathCache[relPath]
 }
 
+// fetchAllImagePaths 遍历所有子目录找图片，返回相对地址
 func fetchAllImagePaths(relDir string) []string {
 	baseDir := util.Config().BaseDir
 	filePaths := util.ListDirRecur(path.Join(baseDir, relDir))
@@ -108,7 +111,8 @@ func fetchAllImagePaths(relDir string) []string {
 	return imagePaths
 }
 
-func filterImagePathsByHwRatio(paths []string, hwOperator HwOperatorType, hwRatio float64) ([]string, error) {
+// filterImagePathsByHwRatio 过滤宽高比满足要求的图片地址
+func filterImagePathsByHwRatio(paths []string, hwOperator util.HWOperatorType, hwRatio float64) ([]string, error) {
 	var pathFiltered []string
 	for _, p := range paths {
 		size, err := util.GetImageSize(p)
@@ -122,11 +126,11 @@ func filterImagePathsByHwRatio(paths []string, hwOperator HwOperatorType, hwRati
 		}
 		ratio := float64(size.Height) / float64(size.Width)
 		switch hwOperator {
-		case GreaterOrEqualThan:
+		case util.GreaterOrEqualThan:
 			if ratio >= hwRatio {
 				pathFiltered = append(pathFiltered, p)
 			}
-		case LessOrEqualThan:
+		case util.LessOrEqualThan:
 			if ratio <= hwRatio {
 				pathFiltered = append(pathFiltered, p)
 			}
@@ -135,9 +139,33 @@ func filterImagePathsByHwRatio(paths []string, hwOperator HwOperatorType, hwRati
 	return pathFiltered, nil
 }
 
+// GetImage 响应前端请求返回图片
 func GetImage(c *gin.Context) {
 	relPath := c.Query("path")
 	baseDir := util.Config().BaseDir
 	absPath := path.Join(baseDir, relPath)
 	c.File(absPath)
+}
+
+func DownloadImage(c *gin.Context) {
+	var req model.DownloadImageReq
+	err := c.ShouldBind(req)
+	if err != nil {
+		log.Printf("[ERROR] %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"err": util.ErrParseReq,
+		})
+		return
+	}
+	srcPath := filepath.Join(util.Config().BaseDir, req.Path)
+	if err = util.CopyFile(srcPath, util.Config().DownloadDir); err != nil {
+		log.Printf("[ERROR] %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"err": util.ErrDownloadImage,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status": "okay",
+	})
 }
