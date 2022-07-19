@@ -1,2 +1,4 @@
-./config/**
+config/**
+logs/**
 *.exe
+*.exe~

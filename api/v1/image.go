@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"path"
@@ -15,18 +16,23 @@ import (
 var imagePathCache = make(map[string][]string)
 
 func GetImageList(c *gin.Context) {
+	// fmt.Print("[DEBUG] GetImageList", c.Request)
 	// bind req
 	var req model.ImageListReq
-	if err := c.ShouldBind(req); err == nil {
-		log.Printf("[ERROR] %v", err)
+	if err := c.ShouldBind(&req); err != nil {
+		fmt.Printf("[ERROR] %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"err": util.ErrParseReq,
 		})
 		return
 	}
 
+	// fmt.Println("[DEBUG] req: ", req)
+
 	// load and filter
 	imageList := loadImagePaths(req.Dir)
+	// fmt.Println("L34-[DEBUG] imageList: ", imageList)
+
 	var err error
 	switch req.HWOperator {
 	case "gte":
@@ -35,15 +41,17 @@ func GetImageList(c *gin.Context) {
 		imageList, err = filterImagePathsByHwRatio(imageList, util.LessOrEqualThan, req.HWRatio)
 	}
 	if err != nil {
-		log.Printf("[ERROR] %v", util.ErrFilterImage)
+		fmt.Printf("[ERROR] %v", util.ErrFilterImage)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"err": util.ErrFilterImage,
 		})
 		return
 	}
 
+	// fmt.Println("L51-[DEBUG] imageList: ", imageList)
+
 	// pager
-	imageList, err = getImageListPage(imageList, req, c)
+	imageList, err = getImageListPage(imageList, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"err": util.ErrParseReq,
@@ -57,7 +65,7 @@ func GetImageList(c *gin.Context) {
 }
 
 // getImageListPage 分页逻辑
-func getImageListPage(imageList []string, req model.ImageListReq, c *gin.Context) ([]string, error) {
+func getImageListPage(imageList []string, req model.ImageListReq) ([]string, error) {
 	// default: return all
 	if req.PageNum == 0 && req.PageSize == 0 {
 		return imageList, nil
@@ -93,17 +101,20 @@ func loadImagePaths(relPath string) []string {
 func fetchAllImagePaths(relDir string) []string {
 	baseDir := util.Config().BaseDir
 	filePaths := util.ListDirRecur(path.Join(baseDir, relDir))
+	// fmt.Println("[DEBUG] filePaths: ", filePaths)
 	var imagePaths []string
 	for _, p := range filePaths {
 		relPath, err := filepath.Rel(baseDir, p)
 		if err != nil {
-			log.Println("[ERROR]", err)
 			continue
 		}
 		switch filepath.Ext(relPath) {
 		case ".webp":
+			imagePaths = append(imagePaths, relPath)
 		case ".jpg":
+			imagePaths = append(imagePaths, relPath)
 		case ".jpeg":
+			imagePaths = append(imagePaths, relPath)
 		case ".png":
 			imagePaths = append(imagePaths, relPath)
 		}
@@ -115,13 +126,13 @@ func fetchAllImagePaths(relDir string) []string {
 func filterImagePathsByHwRatio(paths []string, hwOperator util.HWOperatorType, hwRatio float64) ([]string, error) {
 	var pathFiltered []string
 	for _, p := range paths {
-		size, err := util.GetImageSize(p)
+		size, err := util.GetImageSize(filepath.Join(util.Config().BaseDir, p))
 		if err != nil {
-			log.Println("[ERROR]", err)
+			fmt.Println("[ERROR]", err)
 			continue
 		}
 		if size.Width == 0 {
-			log.Println("[ERROR] zero division: size.width")
+			fmt.Println("[ERROR] zero division: size.width")
 			continue
 		}
 		ratio := float64(size.Height) / float64(size.Width)
@@ -144,6 +155,7 @@ func GetImage(c *gin.Context) {
 	relPath := c.Query("path")
 	baseDir := util.Config().BaseDir
 	absPath := path.Join(baseDir, relPath)
+	fmt.Println("[DEBUG] absPath: ", absPath)
 	c.File(absPath)
 }
 
@@ -151,7 +163,7 @@ func DownloadImage(c *gin.Context) {
 	var req model.DownloadImageReq
 	err := c.ShouldBind(req)
 	if err != nil {
-		log.Printf("[ERROR] %v", err)
+		fmt.Printf("[ERROR] %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"err": util.ErrParseReq,
 		})
@@ -159,7 +171,7 @@ func DownloadImage(c *gin.Context) {
 	}
 	srcPath := filepath.Join(util.Config().BaseDir, req.Path)
 	if err = util.CopyFile(srcPath, util.Config().DownloadDir); err != nil {
-		log.Printf("[ERROR] %v", err)
+		fmt.Printf("[ERROR] %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"err": util.ErrDownloadImage,
 		})
