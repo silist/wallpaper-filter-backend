@@ -161,7 +161,7 @@ func GetImage(c *gin.Context) {
 
 func DownloadImage(c *gin.Context) {
 	var req model.DownloadImageReq
-	err := c.ShouldBind(req)
+	err := c.ShouldBind(&req)
 	if err != nil {
 		fmt.Printf("[ERROR] %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -169,6 +169,7 @@ func DownloadImage(c *gin.Context) {
 		})
 		return
 	}
+	fmt.Println("[DEBUG] req: ", req)
 	srcPath := filepath.Join(util.Config().BaseDir, req.Path)
 	if err = util.CopyFile(srcPath, util.Config().DownloadDir); err != nil {
 		fmt.Printf("[ERROR] %v", err)

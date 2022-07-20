@@ -18,7 +18,12 @@ func ListDirRecur(dirPath string) []string {
 	// 遍历输入目录
 	for _, f := range files {
 		fullPath := filepath.Join(dirPath, f.Name())
-		filePaths = append(filePaths, fullPath)
+		if f.IsDir() {
+			innerPaths := ListDirRecur(fullPath)
+			filePaths = append(filePaths, innerPaths...)
+		} else {
+			filePaths = append(filePaths, fullPath)
+		}
 	}
 	return filePaths
 }
@@ -32,6 +37,10 @@ func CopyFile(srcPath string, dstDir string) error {
 	defer src.Close()
 
 	dstPath := filepath.Join(dstDir, filepath.Base(srcPath))
+	// 如果文件已存在则直接返回
+	if _, err := os.Stat(dstPath); err == nil {
+		return nil
+	}
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		log.Printf("[ERROR] failed to create file %s.", dstDir)
