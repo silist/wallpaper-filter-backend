@@ -1,9 +1,15 @@
 package util
 
 import (
-	"github.com/chai2010/webp"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
+
+	"github.com/chai2010/webp"
 )
 
 type ImageSize struct {
@@ -17,7 +23,20 @@ func GetImageSize(path string) (ImageSize, error) {
 		log.Println(err)
 		return ImageSize{}, err
 	}
-	width, height, _, err := webp.GetInfo(data)
+
+	var width, height int
+
+	switch filepath.Ext(path) {
+	case ".webp":
+		width, height, _, err = webp.GetInfo(data)
+	default:
+		reader, _ := os.Open(path)
+		defer reader.Close()
+		var im image.Config
+		im, _, err = image.DecodeConfig(reader)
+		width, height = im.Width, im.Height
+	}
+
 	if err != nil {
 		log.Println(err)
 		return ImageSize{}, err
