@@ -2,7 +2,6 @@ package v1
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -12,8 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ImagePath struct {
+	RelPath string `json:"rel_path"`
+	AbsPath string `json:"abs_path"`
+}
+
 // 用map模拟cache，避免重复扫文件；无过期时间
-var imagePathCache = make(map[string][]string)
+var ImagePathCache = make(map[string][]ImagePath)
 
 func GetImageList(c *gin.Context) {
 	// fmt.Print("[DEBUG] GetImageList", c.Request)
@@ -31,7 +35,7 @@ func GetImageList(c *gin.Context) {
 
 	// load and filter
 	imageList := loadImagePaths(req.Dir)
-	// fmt.Println("L34-[DEBUG] imageList: ", imageList)
+	// fmt.Println("L34-[DEBUG] imageList: ", len(imageList))
 
 	var err error
 	switch req.HWOperator {
@@ -65,44 +69,46 @@ func GetImageList(c *gin.Context) {
 }
 
 // getImageListPage 分页逻辑
-func getImageListPage(imageList []string, req model.ImageListReq) ([]string, error) {
+func getImageListPage(imageList []ImagePath, req model.ImageListReq) ([]ImagePath, error) {
 	// default: return all
 	if req.PageNum == 0 && req.PageSize == 0 {
 		return imageList, nil
 	}
-	if req.PageNum == 0 || req.PageSize == 0 {
-		log.Printf("[ERROR] one of page_num, page_size is emtpy.")
-		return []string{}, nil
-	}
+	// if req.PageNum == 0 || req.PageSize == 0 {
+	// 	log.Printf("[ERROR] one of page_num, page_size is emtpy.")
+	// 	return []ImagePath{}, nil
+	// }
+
 	// pager
-	var idxStart, idxEnd int
-	if req.PageNum*req.PageSize > len(imageList)-1 {
-		idxStart = len(imageList) - 1
-	} else {
-		idxStart = req.PageNum * req.PageSize
+
+	var idxStart = req.PageNum * req.PageSize
+	var idxEnd = (req.PageNum + 1) * req.PageSize
+
+	if idxStart > len(imageList) {
+		idxStart = len(imageList)
 	}
-	if (req.PageNum+1)*req.PageSize > len(imageList) {
+	if idxEnd > len(imageList) {
 		idxEnd = len(imageList)
-	} else {
-		idxEnd = req.PageNum * (req.PageSize + 1)
 	}
+
+	fmt.Printf("[pager] idxStart: %d idxEnd: %d\n", idxStart, idxEnd)
 	return imageList[idxStart:idxEnd], nil
 }
 
 // loadImagePaths 优先从cache中取图片地址集合，如不存在则遍历
-func loadImagePaths(relPath string) []string {
-	if _, ok := imagePathCache[relPath]; !ok {
-		imagePathCache[relPath] = fetchAllImagePaths(relPath)
+func loadImagePaths(relPath string) []ImagePath {
+	if _, ok := ImagePathCache[relPath]; !ok {
+		ImagePathCache[relPath] = fetchAllImagePaths(relPath)
 	}
-	return imagePathCache[relPath]
+	return ImagePathCache[relPath]
 }
 
 // fetchAllImagePaths 遍历所有子目录找图片，返回相对地址
-func fetchAllImagePaths(relDir string) []string {
+func fetchAllImagePaths(relDir string) []ImagePath {
 	baseDir := util.Config().BaseDir
 	filePaths := util.ListDirRecur(path.Join(baseDir, relDir))
-	// fmt.Println("[DEBUG] filePaths: ", filePaths)
-	var imagePaths []string
+	// fmt.Println("L109-[DEBUG] filePaths: ", len(filePaths))
+	var imagePaths []ImagePath
 	for _, p := range filePaths {
 		relPath, err := filepath.Rel(baseDir, p)
 		if err != nil {
@@ -110,23 +116,25 @@ func fetchAllImagePaths(relDir string) []string {
 		}
 		switch filepath.Ext(relPath) {
 		case ".webp":
-			imagePaths = append(imagePaths, relPath)
+			imagePaths = append(imagePaths, ImagePath{RelPath: relPath, AbsPath: p})
 		case ".jpg":
-			imagePaths = append(imagePaths, relPath)
+			imagePaths = append(imagePaths, ImagePath{RelPath: relPath, AbsPath: p})
 		case ".jpeg":
-			imagePaths = append(imagePaths, relPath)
+			imagePaths = append(imagePaths, ImagePath{RelPath: relPath, AbsPath: p})
 		case ".png":
-			imagePaths = append(imagePaths, relPath)
+			imagePaths = append(imagePaths, ImagePath{RelPath: relPath, AbsPath: p})
 		}
 	}
 	return imagePaths
 }
 
 // filterImagePathsByHwRatio 过滤宽高比满足要求的图片地址
-func filterImagePathsByHwRatio(paths []string, hwOperator util.HWOperatorType, hwRatio float64) ([]string, error) {
-	var pathFiltered []string
+func filterImagePathsByHwRatio(paths []ImagePath, hwOperator util.HWOperatorType, hwRatio float64) ([]ImagePath, error) {
+	// fmt.Printf("[DEBUG] filterImagePathsByHwRatio=%v\n", paths)
+	var pathFiltered []ImagePath
 	for _, p := range paths {
-		size, err := util.GetImageSize(filepath.Join(util.Config().BaseDir, p))
+		size, err := util.GetImageSize(filepath.Join(util.Config().BaseDir, p.RelPath))
+		// fmt.Printf("[DEBUG] image_path=%v|size=%v\n", p, size)
 		if err != nil {
 			fmt.Println("[ERROR]", err)
 			continue
@@ -155,7 +163,7 @@ func GetImage(c *gin.Context) {
 	relPath := c.Query("path")
 	baseDir := util.Config().BaseDir
 	absPath := path.Join(baseDir, relPath)
-	fmt.Println("[DEBUG] absPath: ", absPath)
+	// fmt.Println("[DEBUG] absPath: ", absPath)
 	c.File(absPath)
 }
 
@@ -169,7 +177,7 @@ func DownloadImage(c *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("[DEBUG] req: ", req)
+	// fmt.Println("[DEBUG] req: ", req)
 	srcPath := filepath.Join(util.Config().BaseDir, req.Path)
 	if err = util.CopyFile(srcPath, util.Config().DownloadDir); err != nil {
 		fmt.Printf("[ERROR] %v", err)

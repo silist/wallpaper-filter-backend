@@ -2,7 +2,6 @@ package util
 
 import (
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,7 +9,8 @@ import (
 
 // ListDirRecur 递归列出文件夹中所有文件
 func ListDirRecur(dirPath string) []string {
-	files, err := ioutil.ReadDir(dirPath)
+	// fmt.Println("[DEBUG] ListDirRecur path=", dirPath)
+	files, err := os.ReadDir(dirPath)
 	var filePaths []string
 	if err != nil {
 		log.Printf("[ERROR] failed to iterate %s.", dirPath)

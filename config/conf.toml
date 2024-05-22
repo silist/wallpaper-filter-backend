@@ -1,6 +1,7 @@
 base_dir = "H:/silist/anime/illustration/pixiv_archived"
+# base_dir = "E:/Projects/python/git/PixivBiu/downloads"
 # base_dir = "E:/"
 # base_dir = "/Users/feegao/Pictures/wallpaper"
 # download_dir = "./wallpaper-recent"
 download_dir = "G:/wallpaper/await"
-addr = "192.168.0.176:3434"
+addr = ":3434"

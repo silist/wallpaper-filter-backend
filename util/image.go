@@ -4,7 +4,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,7 +17,7 @@ type ImageSize struct {
 }
 
 func GetImageSize(path string) (ImageSize, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Println(err)
 		return ImageSize{}, err
